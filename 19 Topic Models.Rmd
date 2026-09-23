@@ -7,6 +7,15 @@ output:
     css: style.css
 ---
 
+## Key Concepts | Learn Structure from Text
+
+- **Unsupervised learning:** discover topics without a supplied topic label for every review.
+- **Feature engineering:** convert text into a representation the model can use.
+- **Fit, tune, and iterate:** learn topic structure and compare different topic counts.
+- **Evaluate and apply:** combine fit measures with interpretation and business usefulness.
+
+Today we extend lecture 13's modeling workflow from customer records to documents.
+
 ## Student Ratings
 
 It's that time again: [studentratings.byu.edu](https://studentratings.byu.edu).
@@ -43,6 +52,16 @@ Provide the client with some *actionable* recommendations based on customer sent
 
 ![](Figures/hex_tidytext.png){width=500px}
 
+## What Kind of Learning Does the Client Need?
+
+Lecture 13 separated supervised prediction from unsupervised discovery. The hotel question can lead to different tasks:
+
+- **Supervised classification:** predict a supplied label, such as whether a review is positive or negative.
+- **Unsupervised topic modeling:** discover themes in reviews without known topic labels.
+- **Causal inference:** determine whether changing an operational practice would improve satisfaction.
+
+Our topic model addresses the second task. A theme such as "room noise" does not itself tell us whether the review is favorable, or establish the effect of a proposed fix.
+
 ## Text Data
 
 We've done a bit of **natural language processing** (NLP) previously. The basic approach we've already used is called **bag of words**, where each token (what we create when we *tokenize*) is a word.
@@ -77,6 +96,16 @@ seed_num <- 42
 ```{r}
 roomba_reviews <- read_csv("roomba_reviews.csv")
 ```
+
+## Engineer | From Review Text to Model Inputs
+
+Lecture 13 described **feature engineering** as preparing predictors for the model. For text, the representation determines what patterns the model can see.
+
+- Tokenization and term counts turn prose into numeric inputs.
+- Removing stop words changes which vocabulary contributes to the model.
+- A bag of words discards word order and much context. For example, "not easy to clean" can lose its negation during stop-word removal.
+
+These choices affect the topics we discover. Retain the original reviews so we can check whether the model's summaries reflect what customers actually wrote.
 
 ## Tokenize, Remove Stop Words, and Visualize
 
@@ -137,6 +166,16 @@ Word frequencies *suggest* overall meaning, but we would like to uncover the dif
 - Documents are treated as *mixtures of topics*.
 - The most common topic model is called **latent Dirichlet allocation** or LDA.
 
+## The Workflow for Topic Discovery
+
+- **Engineer:** create a document-term matrix from the reviews.
+- **Fit:** estimate word distributions within topics and topic mixtures within documents.
+- **Tune:** compare candidate topic counts, using iteration to repeat the fitting task.
+- **Evaluate:** inspect fit, topic distinctiveness, stability, and representative documents.
+- **Apply:** organize customer feedback and identify questions worth investigating.
+
+Unlike the supervised tasks in lectures 14-15, we have no known topic labels against which to compute ordinary classification accuracy.
+
 ## Fit LDA
 
 The input for a topic model is a **document term matrix** (DTM). Let’s "cast" our tidy data into a DTM.
@@ -152,7 +191,9 @@ dtm_reviews
 
 ---
 
-Fitting a topic model is straightforward with a DTM.
+Fitting a topic model is straightforward with a DTM. Here `LDA()` specifies the model and `method = "Gibbs"` selects a fitting method. We are using the package directly rather than setting a parsnip classification or regression mode.
+
+`k = 2` is a **hyperparameter** we supply. Fitting learns the word-topic and document-topic distributions for that setting.
 
 ```{r}
 # Fit a topic model.
@@ -165,7 +206,13 @@ fit_lda2
 
 ## Hyperparameter Tuning
 
-We can select a value of `k` by computing the log-likelihood of the data, given the value of `k`. This number represents how likely we would be to observe the documents in our data if the number of topics was truly equal to `k` (the larger the log-likelihood value, the better).
+We can compare how well fitted models describe the observed documents using log-likelihood. A larger value indicates better fit to these data; it is **not** the probability that `k` is the true number of topics.
+
+Lecture 13's warning about overfitting still applies: better fit to the training corpus need not mean more useful or generalizable topics. Use the comparison alongside interpretation, not as an automatic answer.
+
+## Iterate Across Topic Counts
+
+Apply lecture 13's iteration idea: `pmap()` calls the same fitting function for each candidate `k`; `map()` extracts its fit statistic. The corpus and fitting method stay fixed.
 
 ```{r}
 # Tune k.
@@ -182,7 +229,7 @@ fit_tune <- tibble(num_topics = 2:10) |>
 
 ---
 
-Now we can plot the model fit statistics to determine what `k` might be set to, though it still requires a subjective evaluation of a range of possible models.
+Now plot the fit statistics to help choose candidate solutions for closer inspection.
 
 ```{r fig.width=6, fig.height=4}
 ggplot(fit_tune, aes(x = num_topics, y = model_fit)) +
@@ -192,7 +239,9 @@ ggplot(fit_tune, aes(x = num_topics, y = model_fit)) +
 
 ## Evaluate Topics
 
-We will examine the coefficients (betas) from the topic model, which represent the probability that a given word is part of a given topic.
+We will examine **beta**, the probability of a word **given a topic**. These are learned parameters, but they are not regression slopes or causal effects of words.
+
+Lecture 13's "black box" discussion does not mean predictive or unsupervised models have no interpretable outputs. Here word probabilities and document examples help us describe what the model learned.
 
 ```{r eval=FALSE}
 # Fit a final topic model.
@@ -290,6 +339,25 @@ roomba_reviews |>
   select(Review)
 ```
 
+## Evaluate | Does the Topic Solution Travel?
+
+Lecture 13's goal was to learn regular patterns rather than noise. For topic discovery, ask:
+
+- Do representative reviews support the names we give the topics?
+- Do similar themes appear across different starts, samples, and plausible preprocessing choices?
+- Are extra topics informative, or do they fragment the same theme?
+- Would the vocabulary and topics still be useful for a different batch of reviews?
+
+If predicting unseen text is the goal, reserve documents for evaluation and keep vocabulary preparation separate from those documents. A good in-sample likelihood alone is not a generalization check.
+
+## Apply | From Themes to a Recommendation
+
+For the hotel client, topics can organize feedback about staff, location, noise, or cleanliness. Read the associated reviews to determine what customers are actually saying before labeling a theme positive or negative.
+
+This is an application of learned structure, not a counterfactual estimate of how much satisfaction would change after an intervention.
+
+Recommend what to investigate, which evidence supports the recommendation, and what remains uncertain. A trial or other causal evidence would be needed to estimate an intervention's impact.
+
 ## Other Options?
 
 Topic models are great - but do we have another tool that is adept at analyzing large amounts of text?
@@ -298,7 +366,9 @@ Topic models are great - but do we have another tool that is adept at analyzing 
 
 *Summary*
 
-- Used NLP, including reviewing tokenizing and removing stop words, sentiment analysis, and topic modeling.
+- Used NLP, including tokenization, stop-word removal, and topic modeling.
+- Connected lecture 13's feature engineering, iteration, tuning, and evaluation to unsupervised text analysis.
+- Distinguished discovering a theme from measuring sentiment or establishing the effect of an intervention.
 
 *Next Time*
 
